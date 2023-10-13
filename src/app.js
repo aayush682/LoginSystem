@@ -1,43 +1,33 @@
-require('dotenv').config()
+require('dotenv').config();
 
-// Import required modules
-const express = require('express'); // Express web framework
-const path = require('path'); // Path module for working with file and directory paths
-const hbs = require('hbs'); // Handlebars templating engine
-const route = require('./routes/route'); // User-defined router module
-
-
-// Connect to the database
+const express = require('express');
+const path = require('path');
+const hbs = require('hbs');
+const route = require('./routes/route');
+const cookieParser = require('cookie-parser');
 require('./db/conn');
 
-const PORT = process.env.PORT || 3000; // Set the server port
+const PORT = process.env.PORT || 3000;
 
-// Create an instance of express
-const app = express();
+// Create express server
+const server = express();
 
-// Middleware: Parse JSON bodies
-app.use(express.json());
+// Middleware
+server.use(express.json()); // Parse JSON bodies
+server.use(cookieParser()); // Parse cookies
+server.use(express.urlencoded({ extended: false })); // Parse URL-encoded bodies
+server.use(route); // Use the route middleware
 
-// Middleware: Parse URL-encoded bodies
-app.use(express.urlencoded({ extended: false }));
-
-// Middleware: Use route for handling routes
-app.use(route);
-
-// Set the static directory path
+// Serve static files from the "public" directory
 const publicPath = path.join(__dirname, "../public");
-app.use(express.static(publicPath));
+server.use(express.static(publicPath));
 
-// Set the view engine to hbs (Handlebars)
-app.set('view engine', 'hbs');
-
-// Set the views directory path
-app.set('views', path.join(__dirname, "../views/layouts"));
-
-// Register partials path for hbs
+// Set up view engine and views directory
+server.set('view engine', 'hbs');
+server.set('views', path.join(__dirname, "../views/layouts"));
 hbs.registerPartials(path.join(__dirname, "../views/partials"));
 
 // Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+server.listen(PORT, () => {
+    // Server is running
 });

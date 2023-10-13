@@ -1,94 +1,100 @@
 const express = require('express');
-const User = require('../models/userSchema');
-const bcrypt = require('bcryptjs');
-
 const router = express.Router();
+const bcrypt = require('bcryptjs');
+const auth = require('../middleware/auth');
+const User = require('../models/userSchema');
 
-/**
- * Route: GET /
- * Description: Renders the register page
- */
+// Render the register page
 router.get("/", (req, res) => {
     res.render('register');
 });
 
-/**
- * Route: GET /index
- * Description: Renders the index page
- */
-router.get("/index", (req, res) => {
+// Render the index page, but only if the user is authenticated
+router.get("/index", auth, (req, res) => {
     res.render('index');
 });
 
-/**
- * Route: GET /login
- * Description: Renders the login page
- */
+// Render the login page
 router.get("/login", (req, res) => {
     res.render('login');
 });
 
-/**
- * Route: POST /register
- * Description: Handles the registration form submission
- */
+// Logout the user by clearing tokens and the JWT cookie, then render the login page
+router.get("/logout", auth, async (req, res) => {
+    try {
+        req.user.tokens = [];
+        res.clearCookie('jwt');
+        await req.user.save();
+        res.render('login');
+    } catch (error) {
+        console.log(error.message);
+    }
+});
+
+// Handle POST request to "/register" endpoint
 router.post("/register", async (req, res) => {
     try {
+        // Check if the password matches the confirm password
         if (req.body.password === req.body.confirmpassword) {
-            // Create a new user document
+            // Create a new User object with the request body
             const user = new User(req.body);
-
-            // Generate a token for the user
+            // Generate an authentication token for the user
             const token = await user.generateAuthToken();
-
-            // Save the user document to the database
+            // Set a cookie named "jwt" with the generated token
+            res.cookie("jwt", token, {
+                expires: new Date(Date.now() + 25892000000), // Set the expiration date for the cookie
+                httpOnly: true // Make the cookie accessible only through HTTP requests
+            });
+            // Save the user to the database
             await user.save();
-
-            // Redirect to the login page
+            // Redirect the user to the login page
             res.redirect('/login');
         } else {
-            // Send an error response if passwords do not match
+            // If the password does not match the confirm password, send a 400 Bad Request response
             res.status(400).send("Passwords do not match");
         }
     } catch (error) {
+        // If an error occurs, log the error message to the console
         console.log(error.message);
+        // Redirect the user to the register page
         res.redirect('/register');
     }
 });
 
-/**
- * Route: POST /login
- * Description: Handles the login form submission
- */
+// Login the user
 router.post("/login", async (req, res) => {
     try {
-        // Find the user in the database based on the provided email
+        // Find the user in the database based on the email provided in the request body
         const user = await User.findOne({ email: req.body.email });
 
-
         if (user) {
-            // Decrypt the user's password in the database and check if it matches the provided password
+            // Compare the password provided in the request body with the hashed password stored in the user object
             const validPassword = await bcrypt.compare(req.body.password, user.password);
 
-            // Generate a token for the user
+            // Generate an authentication token for the user
             const token = await user.generateAuthToken();
-            console.log(token);
+
+            // Set a cookie named "jwt" with the generated token
+            res.cookie("jwt", token, {
+                expires: new Date(Date.now() + 6000000),
+                httpOnly: true,
+            });
 
             if (validPassword) {
-                // Redirect the user to the index page if the password is valid
+                // If the password is valid, redirect the user to the "/index" page
                 res.redirect('/index');
             } else {
-                // Send an error response if the password is invalid
+                // If the password is incorrect, send a 400 status code with an error message
                 res.status(400).send("Incorrect password or email");
             }
         } else {
-            // Send an error response if no user is found with the provided email
+            // If the user does not exist, send a 400 status code with an error message
             res.status(400).send("User does not exist");
         }
     } catch (error) {
+        // If an error occurs, log the error message and redirect the user to the "/login" page
         console.log(error.message);
         res.redirect('/login');
     }
 });
-
 module.exports = router;
